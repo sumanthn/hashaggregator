@@ -1,0 +1,4 @@
+{
+"dimensions":["userAgentDevice","UserAgentType","userAgentFamily"],
+"metrics":["requestSize","dataExchangeSize","responseTime"]
+}

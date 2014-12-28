@@ -1,0 +1,4 @@
+{
+"dimensions":["city","country","region"],
+"metrics":["requestSize","dataExchangeSize","responseTime"]
+}
