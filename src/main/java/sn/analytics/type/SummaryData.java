@@ -88,24 +88,7 @@ public class SummaryData {
     
     public static void main(String [] args) throws IOException {
         
-        final String delim = String.valueOf((char)(0x05));
 
-        BufferedReader reader  = new BufferedReader(new FileReader("/Users/Sumanth/datadump/grindr/grindr"));
-
-        String header = reader.readLine();
-        String line = reader.readLine();
-        reader.close();
-        String [] tkns = header.split(delim);
-        int count =0;
-        for(String tkn : tkns){
-            //if (tkn.contains("user"))
-                System.out.println(tkn + "=" + count);
-
-            count++;
-        }
-        
-        String [] dataTkns = line.split(delim);
-        System.out.println(dataTkns[24]);
         
         
     }
