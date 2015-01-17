@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Meta data store for aggregates
  * Created by Sumanth on 27/12/14.
  */
 public class AggregatorMeta {
@@ -37,20 +38,7 @@ public class AggregatorMeta {
         AggregatorMeta aggregatorJson = new AggregatorMeta();
 
         Gson gson = new Gson();
-        /*aggregatorJson.dimensions.add("userAgentDevice");
-        aggregatorJson.dimensions.add("UserAgentType");
-
-        aggregatorJson.metrics.add("requestSize");
-        aggregatorJson.metrics.add("dataExchangeSize");
-        aggregatorJson.metrics.add("responseTime");
-
-
-        Type aggregateData = new TypeToken<List<String>>(){}.getType();
-        String jsonStr = gson.toJson(aggregatorJson);
-
-        System.out.println(jsonStr);*/
         InputStream userAgentFormatFile = AggregatorMeta.class.getResourceAsStream("/UserAgentAggregateMeta.json");
-
         AggregatorMeta meta2 = gson.fromJson(new InputStreamReader(userAgentFormatFile),AggregatorMeta.class);
         for(String dim : meta2.dimensions)
             System.out.println(dim);

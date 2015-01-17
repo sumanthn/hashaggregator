@@ -6,8 +6,12 @@ package sn.analytics.aggregator;
 public interface IAggregator {
 
     public void init();
+    //marks the positions
     public void processHeader(final String header);
-    //a convince split into tokens
+    //takes record tokens and processes the aggregates
     public void processRecord(final String [] recordTokens);
+    /* dumps all the aggregated data*/
+    public String dumpAggregatedData();
+    //close resources and cleanup
     public void postProcess();
 }

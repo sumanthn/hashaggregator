@@ -1,4 +1,4 @@
 {
-"dimensions":["clientId"],
-"metrics":["requestSize","dataExchangeSize","responseTime"]
+"dimensions":["clientId","sessionId"],
+"metrics":["accessUrl"]
 }

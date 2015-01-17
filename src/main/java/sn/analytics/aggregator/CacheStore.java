@@ -10,6 +10,7 @@ import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.eviction.EvictionStrategy;
 import org.infinispan.manager.DefaultCacheManager;
+import sn.analytics.type.CacheItem;
 import sn.analytics.type.GenericGroupByKey;
 import sn.analytics.type.MetricAggregate;
 import sn.analytics.type.MetricData;
@@ -22,7 +23,7 @@ import java.util.Random;
 
 /**
  * Cache Store for various aggregation
- * Sort of disk based cache overflow what cannot be fit in memory
+ * A disk based cache overflow what cannot be fit in memory
  * Created by Sumanth
  */
 public class CacheStore {
@@ -73,6 +74,9 @@ public class CacheStore {
         return manager.getCache(name,true);
     }
 
+    
+    public synchronized Cache<Long,CacheItem> makeGenericDataCache(final String name) { return manager.getCache(name,true);}
+    
     public synchronized  void deleteCache(final String name){
         manager.removeCache(name);
     }

@@ -2,37 +2,51 @@ package sn.analytics.aggregator;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
+import com.google.common.base.Joiner;
 import com.google.common.hash.Hasher;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.infinispan.Cache;
 import org.joda.time.DateTime;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import sn.analytics.GlobalRepo;
 import sn.analytics.type.*;
 import sn.analytics.util.GlobalIdGenerator;
 import sn.analytics.util.KryoPool;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
+import java.io.*;
 import java.nio.charset.Charset;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 /**
  * Created by Sumanth on 28/12/14.
  */
 public class Aggregator extends AbstractAggregator implements IAggregator {
+    private static final Logger logger = LoggerFactory.getLogger(AbstractAggregator.class);
 
     private final AggregateType aggregateType;
+
     private TimeGranularity timeGranularity = TimeGranularity.HOUR_OF_DAY;
+    private final String outDir;
     CacheStore cacheStore = CacheStore.getInstance();
     private String keyCacheId = "";
     private String dataCacheId = "";
+    protected Cache<Long,MetricData> dataCache;
 
-    public Aggregator(final AggregateType aggregateType) {
+    public Aggregator(final AggregateType aggregateType, String outDir) {
         this.aggregateType = aggregateType;
+        this.outDir = outDir;
     }
 
-    public Aggregator(AggregateType aggregateType, TimeGranularity timeGranularity) {
+    public Aggregator(AggregateType aggregateType, TimeGranularity timeGranularity, String outDir) {
         this.aggregateType = aggregateType;
         this.timeGranularity = timeGranularity;
+        this.outDir = outDir;
+
     }
 
     public AggregateType getAggregateType() {
@@ -62,6 +76,7 @@ public class Aggregator extends AbstractAggregator implements IAggregator {
                 GlobalRepo.getInstance().getMetrics(aggregateType));
     }
 
+    
     @Override
     public void processRecord(String[] recordTokens) {
 
@@ -100,6 +115,7 @@ public class Aggregator extends AbstractAggregator implements IAggregator {
                 hasher.putString(recordTokens[dimPositions.get(i)], Charset.defaultCharset());
 
             }
+            
             hasher.putLong(timeDimensionVal);
             groupByKey.append(ts.toString(MINUTES_FORMAT) + ":" + "00");
 
@@ -117,7 +133,7 @@ public class Aggregator extends AbstractAggregator implements IAggregator {
                 KryoPool.getInstance().returnToPool(kryo);
                 bufferOutput.clear();
                 isNewKey = true;
-                dateTimeCache.put(timeDimensionVal, ts.toString(SECONDS_FORMAT));
+               // dateTimeCache.put(timeDimensionVal, ts.toString(SECONDS_FORMAT));
             }
 
             MetricData metricData = null;
@@ -129,13 +145,14 @@ public class Aggregator extends AbstractAggregator implements IAggregator {
 
             for (String metricName : GlobalRepo.getInstance().getMetrics(aggregateType)) {
                 try {
-                    int val = Integer.valueOf(metricPositions.get(metricName));
+                    int val = Integer.valueOf(recordTokens[metricPositions.get(metricName)]);
+
                     metricData.updateDataPoint(metricName, val);
                 } catch (Exception e) {
 
                 }
             }
-
+            processedRecord++;
             metricData.updateCount();
             //putting back mutuated data :
             dataCache.put(hashKey, metricData);
@@ -145,24 +162,126 @@ public class Aggregator extends AbstractAggregator implements IAggregator {
     }
 
     @Override
-    public void postProcess() {
-        System.out.println("Dump key cache");
-        Set<Long> keys = keyCache.keySet();
-        for (Long key : keys) {
-            System.out.print(key);
-            GenericGroupByKey groupByKey = keyCache.get(key);
-            String str = GenericGroupByKey.getStringFromBytes(groupByKey.getGroupByKey());
-            System.out.println(": " + str);
-            MetricData metricData = dataCache.get(key);
-            if (metricData!=null){
-                dumpMetricData(metricData);
-                System.out.println("Count is:" +
-                        metricData.getCount());
+    public String dumpAggregatedData() {
 
-            }else{
-                System.out.println("No metric data for " + key);
+        String fileNamePrefix = null;
+        switch (aggregateType) {
+
+            case USER_AGENT:
+                fileNamePrefix = "Useragent-Aggregates-";
+                break;
+            case GEO_LOCATION:
+                fileNamePrefix = "Geolocation-Aggregates-";
+                break;
+            case CLIENT_SESSION:
+                fileNamePrefix = "Clientsession-Aggregates-";
+                break;
+        }
+        Random rgen = new Random();
+        final String filePath = outDir + "/" + fileNamePrefix + "-" + Math.abs(rgen.nextInt()) + ".csv";
+
+        //dump the records
+        BufferedWriter writer = null;
+        try {
+           writer = new BufferedWriter(new FileWriter(filePath));
+            writer.write(makeHeader());
+            writer.newLine();
+
+            //dump the metrics
+            Set<Long> keys = keyCache.keySet();
+            for (Long key : keys) {
+                //write the key
+                GenericGroupByKey groupByKey = keyCache.get(key);
+                String str = GenericGroupByKey.getStringFromBytes(groupByKey.getGroupByKey());
+                writer.write(str);
+                writer.write(FLD_DELIM);
+                writeAggRecord(key, writer);
+                writer.newLine();
+                
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (writer!=null)
+            try {
+                writer.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        
+        logger.info("Aggregate data for aggregation type {} of time granularity {} in file {} ", aggregateType,timeGranularity,filePath);
+        return filePath;
+    }
+
+    private String makeHeader() {
+        StringBuilder header = new StringBuilder();
+        Joiner.on(FLD_DELIM).appendTo(header, GlobalRepo.getInstance().getDimensions(aggregateType));
+        header.append(FLD_DELIM).append("timestamp");
+        header.append(FLD_DELIM);
+        //sum,min,max,avg of each of the aggregates
+
+        for (String metricName : GlobalRepo.getInstance().getMetrics(aggregateType)) {
+            for (AggOperator aggOperator : AggOperator.values()) {
+                header.append(metricName + "_" + aggOperator.toString());
+                header.append(FLD_DELIM);
             }
         }
+
+        //the record count for this aggregate
+        header.append("Count");
+
+        return header.toString();
+
+    }
+    static final DecimalFormat numberFormatter = new DecimalFormat("##.####");
+
+    private void writeAggRecord(final Long hashKey, final BufferedWriter writer) {
+
+        
+        MetricData metricData = dataCache.get(hashKey);
+        try {
+            for (String metricName : GlobalRepo.getInstance().getMetrics(aggregateType)) {
+                MetricAggregate metricAgg =
+                        metricData.getAggData(metricName);
+                if (metricAgg != null) {
+                    for (AggOperator aggOperator : AggOperator.values()) {
+
+                        switch (aggOperator) {
+
+                            case SUM:
+
+                                writer.write(numberFormatter.format(metricAgg.getSummaryStatistics().getSum()));
+                                break;
+                            case MIN:
+
+                                writer.write(numberFormatter.format(metricAgg.getSummaryStatistics().getMin()));
+                                break;
+                            
+                            case MAX:
+
+                                writer.write(numberFormatter.format(metricAgg.getSummaryStatistics().getMax()));
+                                break;
+                            case AVG:
+                                writer.write(numberFormatter.format(metricAgg.getSummaryStatistics().getMean()));
+                                break;
+                        }
+                        writer.write(FLD_DELIM);
+                    }
+                }
+
+            }
+            writer.write(""+ metricData.getCount());
+           
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
+    }
+
+    @Override
+    public void postProcess() {
+
         keyCache.clear();
         dataCache.clear();
         cacheStore.deleteCache(keyCacheId);
@@ -173,43 +292,67 @@ public class Aggregator extends AbstractAggregator implements IAggregator {
     private void dumpMetricData(MetricData metricData) {
         for (String metricName : GlobalRepo.getInstance().getMetrics(aggregateType)) {
 
-             MetricAggregate metricAgg =
+            MetricAggregate metricAgg =
                     metricData.getAggData(metricName);
-            if (metricAgg!=null) {
+            if (metricAgg != null) {
+                System.out.print("Metric: " + metricName + " ");
                 SummaryStatistics summaryStatistics = metricAgg.getSummaryStatistics();
-                System.out.println(summaryStatistics.getN() + " " + summaryStatistics.getSum() + " " + summaryStatistics.getMin());
-            }else{
+                System.out.println(" " + summaryStatistics.getSum() + " " + summaryStatistics.getMin() + " avg is " + summaryStatistics.getMean());
+            } else {
                 System.out.println("No data for metric " + metricName);
             }
         }
 
     }
-
-    public static void main(String[] args) {
+    
+    public static void main(String [] args){
 
         GlobalRepo.getInstance().init();
         CacheStore.getInstance().init();
-        final String fileName = "/tmp/factdata.csv";
-        IAggregator aggregator = null;
+        final String fileName = "/tmp/fact2.csv";
+        List<IAggregator> aggregators = new ArrayList<IAggregator>();
+        final String outDir = "/tmp/aggdata/";
+        
+        IAggregator userAgentAgg = new Aggregator(AggregateType.USER_AGENT,TimeGranularity.MINUTE_OF_DAY,outDir);
+        IAggregator geolocationAgg = new Aggregator(AggregateType.GEO_LOCATION,TimeGranularity.MINUTE_OF_DAY,outDir);
+        IAggregator geolocationAggHourly = new Aggregator(AggregateType.GEO_LOCATION,TimeGranularity.HOUR_OF_DAY,outDir);
+        
+        aggregators.add(userAgentAgg);
+        aggregators.add(geolocationAgg);
+        aggregators.add(geolocationAggHourly);
+
         try {
             BufferedReader reader = new BufferedReader(new FileReader(fileName));
-            aggregator = new Aggregator(AggregateType.USER_AGENT, TimeGranularity.MINUTE_OF_DAY);
-            aggregator.init();
+            for(IAggregator aggregator: aggregators)
+                aggregator.init();
             String header = reader.readLine();
-            aggregator.processHeader(header);
+            
+            for(IAggregator aggregator: aggregators)
+                aggregator.processHeader(header);
+            
             String line = reader.readLine();
             while (line != null) {
 
                 String[] recordTokens = line.split(FLD_DELIM);
-                aggregator.processRecord(recordTokens);
-                aggregator.processRecord(recordTokens);
+                
+                for(IAggregator aggregator:aggregators)
+                    aggregator.processRecord(recordTokens);
+
                 line = reader.readLine();
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-        aggregator.postProcess();
+
+        for(IAggregator aggregator:aggregators) {
+
+            aggregator.dumpAggregatedData();
+            aggregator.postProcess();
+        }
         CacheStore.getInstance().close();
+
+
     }
+
 }

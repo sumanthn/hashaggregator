@@ -58,7 +58,7 @@ public class GlobalRepo {
     }
 
     public List<String> getDimensions(final AggregateType aggregateType){
-        if (metaData == null) System.out.println("MET AIS NULL");
+
         return metaData.get(aggregateType).getDimensions();
     }
 

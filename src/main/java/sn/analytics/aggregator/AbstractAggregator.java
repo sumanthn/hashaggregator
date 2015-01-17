@@ -8,20 +8,21 @@ import org.infinispan.Cache;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import sn.analytics.GlobalRepo;
 import sn.analytics.type.AggregateType;
 import sn.analytics.type.GenericGroupByKey;
 import sn.analytics.type.MetricData;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 /**
+ * Aggregate based on hash key
  * Created by Sumanth on 27/12/14.
  */
 public class AbstractAggregator {
+    private static final Logger logger = LoggerFactory.getLogger(AbstractAggregator.class);
     static final DateTimeFormatter MILL_SECONDS_FORMAT = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS");
     static final DateTimeFormatter SECONDS_FORMAT = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
     static final DateTimeFormatter MINUTES_FORMAT = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm");
@@ -38,13 +39,14 @@ public class AbstractAggregator {
     protected Map<String,Integer> metricPositions;
     protected ImmutableList<Integer> dimPositions;
     protected Cache <Long,GenericGroupByKey> keyCache;
-    protected Cache <Long,MetricData> dataCache;
 
 
     protected Map<Long,String> dateTimeCache = new HashMap<Long, String>();
     protected Map<String,Integer> timeDimensionsPositions = new HashMap<String, Integer>();
     protected HashFunction hashFunction   = Hashing.murmur3_128(new Random().nextInt());
 
+    protected long processedRecord = 0;
+    
     protected void discoverPositions(final String header,final List<String> dimensions, final List<String> metrics){
         String [] tkns = header.split(FLD_DELIM);
 
@@ -118,15 +120,13 @@ public class AbstractAggregator {
 
         AbstractAggregator abstractAggregator = new AbstractAggregator();
         abstractAggregator.discoverPositions(header,
-                GlobalRepo.getInstance().getDimensions(AggregateType.USER_AGENT),
-                GlobalRepo.getInstance().getMetrics(AggregateType.USER_AGENT));
-
-
-       /* List<Integer> allpos = abstractAggregator.getMetricPositions();
-        for(Integer pos : allpos){
-            System.out.println(pos);
-        }*/
-
+                GlobalRepo.getInstance().getDimensions(AggregateType.CLIENT_SESSION),
+                GlobalRepo.getInstance().getMetrics(AggregateType.CLIENT_SESSION));
+        
+        Set<String> metricNames = abstractAggregator.getMetricPositions().keySet();
+        for(String metricName : metricNames){
+            System.out.println(metricName + " " +abstractAggregator.getMetricPositions().get(metricName));
+        }
     }
     protected static DateTime strToDateTime(final String str) {
         if (str.length() == 19) {

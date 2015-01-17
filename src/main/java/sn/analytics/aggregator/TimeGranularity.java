@@ -7,5 +7,24 @@ public enum TimeGranularity {
     MINUTE_OF_DAY,
     HOUR_OF_DAY,
     DAY,
-    ALL
+    ALL;
+    
+    public String toString(){
+        switch(this){
+
+            case MINUTE_OF_DAY:
+                return "MinuteOfDay";
+            
+            case HOUR_OF_DAY:
+                return "HourOfDay";
+            
+            case DAY:
+                return "Day";
+            
+            
+        }
+        
+        return "Timestamp";
+        
+    }
 }

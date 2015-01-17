@@ -7,5 +7,25 @@ public enum AggOperator {
     SUM,
     MIN,
     MAX,
-    COUNT
+    AVG;
+    
+    public String toString(){
+        switch(this){
+
+            case SUM:
+                return "sum";
+                
+            case MIN:
+                return "min";
+            case MAX:
+                return "max";
+            case AVG:
+                return "avg";
+                
+        }
+        return "unknown";
+        
+    }
+    
+    
 }

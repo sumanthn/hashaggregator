@@ -34,7 +34,7 @@ public class MetricAggregate implements Serializable {
 
         if (!Double.valueOf(summaryStatistics.getMean()).isNaN() ) {
             SummaryData summaryData = new SummaryData(summaryStatistics.getMin(),
-                    summaryStatistics.getMean(), summaryStatistics.getMax());
+                    summaryStatistics.getMean(), summaryStatistics.getMax(),summaryStatistics.getSum());
             try {
                 //valid if there are multiple items
 
