@@ -22,3 +22,7 @@ MurMur Hash [Guava Hashing.murmur3_128]  is used to generate hash for the groupb
 Infinispan cache can be used to to spill to disk when overflowing the data; this will take care of large aggregation of large datasets
 
 TODO: performance test with large data file
+Running 
+java -jar target/aggregator-jar-with-dependencies.jar <rawfactfile> <outdir>
+ Example:
+java -jar target/aggregator-jar-with-dependencies.jar /tmp/fact2.csv /tmp/aggdata/
